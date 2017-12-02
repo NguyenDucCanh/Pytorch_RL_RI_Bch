@@ -40,7 +40,7 @@ class LSTM_Bch(nn.Module):
         #tag_scores = F.log_softmax(tag_space)
         #tag_scores = tag_space
         return bch_out
-
+#%%
 step_epoch = 5;
 nb_epoch=100
 batchsize = 1
@@ -170,7 +170,8 @@ for nb_Cell in [30]:
     a_testLeStClassify2=[]
     a_testLeStClassify3=[]
     a_testLeStClassify4=[]		
-    for index_filetest in range(nb_file):
+    #for index_filetest in range(nb_file):
+    for index_filetest in [3]:
         #index_filetest = 0;
         print("index_filetest : %d" % index_filetest)
         train_IU = numpy.delete(IU,(index_filetest),axis=1)
@@ -234,9 +235,11 @@ for nb_Cell in [30]:
                     loss.backward()
                     optimizer.step()
             
-            savefile = 'Model_Pytorch_singletask_total_inSI_SP_outBCH/classify_LSTM_1out_nbC_'+str(nb_Cell)+'_nbE_'+str(nb_epoch)+'_nbTf_'+str(nb_file_train)+'_iTestF_'+str(index_filetest)+'_'+opt+'.pt';
-            torch.save(model,savefile)
+            savefile = 'ModelState_Pytorch_singletask_total_inSI_SP_outBCH/classify_LSTM_1out_nbC_'+str(nb_Cell)+'_nbE_'+str(nb_epoch)+'_nbTf_'+str(nb_file_train)+'_iTestF_'+str(index_filetest)+'_'+opt+'.pt';
+            #torch.save(model,savefile)
             #model = torch.load('filename.pt')
+            
+            torch.save(model.state_dict(), savefile)
             # See what the scores are after training
             inputs = prepare_sequence_input(testX[:,0,:])
             targets = prepare_sequence_target(test_BCH[:,0,:])
