@@ -230,8 +230,7 @@ threshold = 0.25
 def foo():
     global i
     global len_seq
-    global current_FX
-    global current_GT	
+    global current_BCH
     global game
     global predict_BCH
 	#print('i: %d, len_IU: %d, current_FX: %d\n' %(i,len_IU,current_FX))
@@ -250,6 +249,7 @@ def foo():
             bottle_BCH.addString("bch")
             bottle_BCH.addInt(predict_BCH)
             p_BCH.writeStrict()
+            current_BCH = predict_BCH
         i = i+1;
         threading.Timer(0.04, foo).start()
 foo();
