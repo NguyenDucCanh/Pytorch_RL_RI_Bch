@@ -1,0 +1,10 @@
+For training model 
+Pytorch_LSTM_1out_dropout_single_task_inSI012SP_4sbj_noBC_outBCH_total_minlen_offset
+
+For run on Yarp: 
+Pytorch_Bch_YARP
+
+We can you PortCallback with Python at (Yarp_Callback/run_test.sh)
+A good way to think in sending and receiving inputs of model (LSTM_bch)
+http://robotcub-hackers.2198711.n2.nabble.com/Yarp-callbacks-in-Python-td3796634.html
+

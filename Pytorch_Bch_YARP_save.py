@@ -17,7 +17,7 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import  threading
+import datetime, threading
 torch.manual_seed(1)
 numpy.random.seed(7)
 dropout = 0.5;
@@ -205,7 +205,7 @@ prob = F.softmax(bch_scores)
 import yarp
 yarp.Network.init()
 p_BCH = yarp.BufferedPortBottle()
-p_BCH.open("/py/lstm_port:o");
+p_BCH.open("/Pytorch_BCH");
 
 #yarp.Network.connect("/keras_FX","/receive_gaze_arm_process")
 #yarp.Network.connect("/keras_GT","/receive_gaze_arm_process")
@@ -214,63 +214,8 @@ bottle_BCH = p_BCH.prepare()
 #bottle_GT = p_GT.prepare()
 
 current_BCH = -1;
-#%%
-#from threading import thread, Lock
-import threading, time
-data_in = numpy.zeros([8]);
-default_port_in = '/py/lstm_port:i'
-class DataPort(yarp.BufferedPortBottle):
-    def onRead(self, bot, *args, **kwargs):
-        print 'Bottle [%s], args [%s], kwargs [%s]' % (bot.toString(), args, kwargs)
 
-class DataProcessor(yarp.BottleCallback):
-    def onRead(self, bot, *args, **kwargs):
-        #my_mutex = threading.Lock() # CAnnot use MUTEX now
-        for i in range(bot.size()):
-            data_in[i] = bot.get(i).asDouble()
-            #print bot.size()
-            #print bot.get(i).asDouble()
-        #my_mutex.release()
-        #print 'Bottle [%s]' % (bot.toString())
-        
-port = DataPort()
-proc = DataProcessor()
-port.useCallback(proc)
-port.open(default_port_in)
-yarp.Network.connect('/py/datagen:o', default_port_in)
-threshold = 0.25
-
-def foo():
-    global data_in
-    global current_BCH
-    global predict_BCH
-    while 1:
-        #print data_in
-        inputs = prepare_one_input(data_in)
-        #print inputs
-        bch_scores = model(inputs)
-        prob = F.softmax(bch_scores)
-        if (prob.data[0,0] > threshold):
-            predict_BCH = 1
-        else:
-            predict_BCH = 0;
-        #print ('i = %d, BCH_real: %d, BCH_pred:%d\n' % (i,1-numpy.argmax(test_BCH[i,0,:]),predict_BCH))
-        if current_BCH != predict_BCH:
-            bottle_BCH = p_BCH.prepare()
-            bottle_BCH.clear()
-            bottle_BCH.addString("bch")
-            bottle_BCH.addInt(predict_BCH)
-            p_BCH.writeStrict()
-            current_BCH = predict_BCH
-            print "out bch [%d]" % (predict_BCH)
-    threading.Timer(0.04, foo).start()
-foo();
-port.close()
-port.interrupt()
-p_BCH.close()
-p_BCH.interrupt()
 #%%
-"""
 i = 0;
 len_seq = testX.shape[0]
 
@@ -309,4 +254,3 @@ def foo():
         threading.Timer(0.04, foo).start()
 foo();
 print game;
-"""

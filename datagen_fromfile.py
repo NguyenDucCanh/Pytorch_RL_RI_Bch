@@ -1,10 +1,15 @@
-#!/usr/bin/env python2
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Dec  2 18:03:36 2017
+#!/usr/bin/env python
+#
+#Author Duc-Canh NGUYEN
 
-@author: canh
-"""
+#!/usr/bin/python
+
+import yarp
+import optparse
+import time
+import math
+import random
+
 import numpy
 import matplotlib.pyplot as plt
 import pandas
@@ -17,34 +22,10 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import  threading
+import datetime, threading
 torch.manual_seed(1)
 numpy.random.seed(7)
 dropout = 0.5;
-#%% Define LSTM_model
-class LSTM_Bch(nn.Module):
-    def __init__(self, input_dim, hidden_dim,bch_dim):
-        super(LSTM_Bch, self).__init__()
-        self.hidden_dim = hidden_dim
-        self.lstm = nn.LSTM(input_dim, hidden_dim,dropout = dropout)
-        # The linear layer that maps from hidden state space to tag space
-        self.hidden2bch = nn.Linear(hidden_dim, bch_dim)
-        self.hidden = self.init_hidden()
-    def init_hidden(self):
-        # Before we've done anything, we dont have any hidden state.
-        # Refer to the Pytorch documentation to see exactly
-        # why they have this dimensionality.
-        # The axes semantics are (num_layers, minibatch_size, hidden_dim)
-        return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
-                autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
-    def forward(self, sequence):
-        lstm_out, self.hidden = self.lstm(
-            sequence.view(len(sequence), 1, -1), self.hidden)
-        bch_out = self.hidden2bch(lstm_out.view(len(sequence), -1))
-        #tag_scores = F.log_softmax(tag_space)
-        #tag_scores = tag_space
-        return bch_out
-
 #%%
 nb_Cell = 30
 step_epoch = 5;
@@ -152,12 +133,9 @@ def classification_evaluation(Predict,Target):
             classification_score = classification_score+1
     classification_score = classification_score/float(len(Predict))
     return classification_score
-#%% Load Model
+#%% Load Data
+    
 index_filetest = 3
-savefile = 'ModelState_Pytorch_singletask_total_inSI_SP_outBCH/classify_LSTM_1out_nbC_'+str(nb_Cell)+'_nbE_'+str(nb_epoch)+'_nbTf_'+str(nb_file_train)+'_iTestF_'+str(index_filetest)+'_'+opt+'.pt';
-model = LSTM_Bch(8, 30, 2)
-#torch.save(model.state_dict(), savefile)
-model.load_state_dict(torch.load(savefile))
 train_IU = numpy.delete(IU,(index_filetest),axis=1)
 train_SI = numpy.delete(SI,(index_filetest),axis=1)
 train_SP = numpy.delete(SP,(index_filetest),axis=1)
@@ -181,132 +159,75 @@ test_BCH = numpy.reshape(test_BCH, (min_len,1, maxVal_BCH))
 test_head = numpy.reshape(test_head, (min_len,1, 3))
 trainX = numpy.concatenate((train_SI,train_SP),axis=2)
 testX = numpy.concatenate((test_SI,test_SP),axis=2)
-
-inputs = prepare_sequence_input(trainX[:,0,:])
-bch_scores = model(inputs)
-print(bch_scores.data[1:10,0])
-prob = F.softmax(bch_scores)
-"""
-# Test input one sequence is the same with the one-by-one input or not
-#inputs = prepare_sequence_input(trainX[:,0,:])
-#bch_scores = model(inputs)
-#print(bch_scores.data[1:10,0])
-
-##======================================
-#result_sequence = []
-#for i in range(len(trainX)):
-#    inputs = prepare_one_input(trainX[i,0,:])
-#    bch_scores = model(inputs)
-#    result_sequence.append(bch_scores.data[0,0])
-#print(result_sequence[1:10])
-"""
-
 #%%
-import yarp
+period = 0.04 # sec
 yarp.Network.init()
-p_BCH = yarp.BufferedPortBottle()
-p_BCH.open("/py/lstm_port:o");
+default_port = '/py/datagen:o'
 
-#yarp.Network.connect("/keras_FX","/receive_gaze_arm_process")
-#yarp.Network.connect("/keras_GT","/receive_gaze_arm_process")
-
-bottle_BCH = p_BCH.prepare()
-#bottle_GT = p_GT.prepare()
-
-current_BCH = -1;
-#%%
-#from threading import thread, Lock
-import threading, time
-data_in = numpy.zeros([8]);
-default_port_in = '/py/lstm_port:i'
-class DataPort(yarp.BufferedPortBottle):
-    def onRead(self, bot, *args, **kwargs):
-        print 'Bottle [%s], args [%s], kwargs [%s]' % (bot.toString(), args, kwargs)
-
-class DataProcessor(yarp.BottleCallback):
-    def onRead(self, bot, *args, **kwargs):
-        #my_mutex = threading.Lock() # CAnnot use MUTEX now
-        for i in range(bot.size()):
-            data_in[i] = bot.get(i).asDouble()
-            #print bot.size()
-            #print bot.get(i).asDouble()
-        #my_mutex.release()
-        #print 'Bottle [%s]' % (bot.toString())
-        
-port = DataPort()
-proc = DataProcessor()
-port.useCallback(proc)
-port.open(default_port_in)
-yarp.Network.connect('/py/datagen:o', default_port_in)
-threshold = 0.25
-
-def foo():
-    global data_in
-    global current_BCH
-    global predict_BCH
-    while 1:
-        #print data_in
-        inputs = prepare_one_input(data_in)
-        #print inputs
-        bch_scores = model(inputs)
-        prob = F.softmax(bch_scores)
-        if (prob.data[0,0] > threshold):
-            predict_BCH = 1
-        else:
-            predict_BCH = 0;
-        #print ('i = %d, BCH_real: %d, BCH_pred:%d\n' % (i,1-numpy.argmax(test_BCH[i,0,:]),predict_BCH))
-        if current_BCH != predict_BCH:
-            bottle_BCH = p_BCH.prepare()
-            bottle_BCH.clear()
-            bottle_BCH.addString("bch")
-            bottle_BCH.addInt(predict_BCH)
-            p_BCH.writeStrict()
-            current_BCH = predict_BCH
-            print "out bch [%d]" % (predict_BCH)
-    threading.Timer(0.04, foo).start()
-foo();
+port = yarp.BufferedPortBottle()
+port.open(default_port)
+inittime = time.time()
+for i in xrange(len(testX)):
+    bottle = port.prepare()
+    bottle.clear()
+    for j in xrange(len(testX[i,0,:])):
+        #botlist = bottle.addList()
+        bottle.addDouble(testX[i,0,j])
+    time.time()
+    print "[%d,%.3f] %s" % (i+1, time.time() - inittime, bottle.toString())
+    port.write()
+    yarp.Time.delay(period)
 port.close()
 port.interrupt()
-p_BCH.close()
-p_BCH.interrupt()
+yarp.Network.fini()
 #%%
 """
-i = 0;
-len_seq = testX.shape[0]
+yarp.Network.init()
+def main():
+    print 'YARP Random Data Generator from file'
 
-#result_sequence = []
-#for i in range(len(trainX)):
-#    inputs = prepare_one_input(testX[i,0,:])
-#    bch_scores = model(inputs)
-#    result_sequence.append(bch_scores.data[0,0])
-#print(result_sequence[1:10])
-#prob = F.softmax(bch_scores)
-threshold = 0.25
-def foo():
-    global i
-    global len_seq
-    global current_BCH
-    global game
-    global predict_BCH
-	#print('i: %d, len_IU: %d, current_FX: %d\n' %(i,len_IU,current_FX))
-    if i < len_seq-1:
-        inputs = prepare_one_input(testX[i,0,:])
-        bch_scores = model(inputs)
-        prob = F.softmax(bch_scores)
-        if (prob.data[0,0] > threshold):
-            predict_BCH = 1
-        else:
-            predict_BCH = 0;
-        print ('i = %d, BCH_real: %d, BCH_pred:%d\n' % (i,1-numpy.argmax(test_BCH[i,0,:]),predict_BCH))
-        if current_BCH != predict_BCH:
-            bottle_BCH = p_BCH.prepare()
-            bottle_BCH.clear()
-            bottle_BCH.addString("bch")
-            bottle_BCH.addInt(predict_BCH)
-            p_BCH.writeStrict()
-            current_BCH = predict_BCH
-        i = i+1;
-        threading.Timer(0.04, foo).start()
-foo();
-print game;
+    usage = "usage: %prog [options]"
+    parser = optparse.OptionParser(usage)
+    parser.add_option('-n', '--number', dest='number', default=1000, type="int", help='Number of samples to send')
+    parser.add_option('-p', '--port', dest='port', default='/py/datagen:o', help='name of the output port')
+    parser.add_option('-l', '--lists', dest='lists', default=1, type='int', help='number of lists in bottle')
+    parser.add_option('-c', '--components', dest='components', default=3, type='int', help='number of components in each list')
+    parser.add_option('-f', '--frequency', dest='frequency', default=10., type='float', help='sampling frequency (Hz)')
+    parser.add_option('-m', '--mean', dest='mean', default=0., type='float', help='mean for the gaussian PRNG')
+    parser.add_option('-s', '--standard-deviation', dest='stddev', default=1., type='float', help='standard deviation for the gaussian PRNG')
+    parser.add_option('--sin', dest='sin', default=None, type='float', help='generate sin function')
+    parser.add_option('--seed', dest='seed', default=None, type='int', help='seed for the PRNG')
+    (options, args) = parser.parse_args()
+
+    port = yarp.BufferedPortBottle()
+    port.open(options.port)
+    
+    random.seed(options.seed)
+
+    print 'Port:', options.port
+   
+    inittime = time.time()    
+    for i in xrange(options.number):
+        bottle = port.prepare()
+        bottle.clear()
+        for j in xrange(options.lists):
+            botlist = bottle.addList()
+            for k in xrange(options.components):
+                if not options.sin:
+                    botlist.addDouble(random.gauss(options.mean, options.stddev))
+                else:
+                    botlist.addDouble(math.sin(time.time() * options.sin))
+            
+        print "[%d,%.3f] %s" % (i+1, time.time() - inittime, bottle.toString())
+        port.write()
+        yarp.Time.delay(1. / options.frequency)
+    
+    port.close()
+    port.interrupt()
+    
+    yarp.Network.fini()
+
+
+if __name__ == "__main__":
+    main()
 """
