@@ -239,7 +239,8 @@ port.useCallback(proc)
 port.open(default_port_in)
 yarp.Network.connect('/py/datagen:o', default_port_in)
 threshold = 0.25
-
+#%%
+"""
 def foo():
     global data_in
     global current_BCH
@@ -263,8 +264,38 @@ def foo():
             p_BCH.writeStrict()
             current_BCH = predict_BCH
             print "out bch [%d]" % (predict_BCH)
-    threading.Timer(0.04, foo).start()
+        yarp.Time.delay(0.04) # it can solver the problem of incremental memory due to exponantial threading call, but can be delay due to calculating time
+    #threading.Timer(0.04, foo).start()
+
 foo();
+"""
+#%% Simple way to avoid threading
+import time
+starttime=time.time()
+period = 0.04;
+while True:
+    #print "tick"
+    #print data_in
+    inputs = prepare_one_input(data_in)
+    #print inputs
+    bch_scores = model(inputs)
+    prob = F.softmax(bch_scores)
+    if (prob.data[0,0] > threshold):
+        predict_BCH = 1
+    else:
+        predict_BCH = 0;
+    #print ('i = %d, BCH_real: %d, BCH_pred:%d\n' % (i,1-numpy.argmax(test_BCH[i,0,:]),predict_BCH))
+    if current_BCH != predict_BCH:
+        bottle_BCH = p_BCH.prepare()
+        bottle_BCH.clear()
+        bottle_BCH.addString("bch")
+        bottle_BCH.addInt(predict_BCH)
+        p_BCH.writeStrict()
+        current_BCH = predict_BCH
+        print "out bch [%d]" % (predict_BCH)
+    time.sleep(period - ((time.time() - starttime) % period))
+
+#%% Close port
 port.close()
 port.interrupt()
 p_BCH.close()
