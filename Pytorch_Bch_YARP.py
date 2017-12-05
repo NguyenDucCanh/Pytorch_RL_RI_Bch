@@ -202,10 +202,20 @@ prob = F.softmax(bch_scores)
 """
 
 #%%
+import optparse
 import yarp
+usage = "usage: %prog [options]"
+parser = optparse.OptionParser(usage)
+parser.add_option('--thres', dest='threshold', default=0.23, type='float',
+                      help='[Threshold trigger BCH default = 0.23 for read from file], for real-time: 0.035')
+
+(options, args) = parser.parse_args()
 yarp.Network.init()
 p_BCH = yarp.BufferedPortBottle()
 p_BCH.open("/py/lstm_port:o");
+
+p_BCH_prob = yarp.BufferedPortBottle()
+p_BCH_prob.open("/py/lstm_port/prob:o");
 
 #yarp.Network.connect("/keras_FX","/receive_gaze_arm_process")
 #yarp.Network.connect("/keras_GT","/receive_gaze_arm_process")
@@ -238,7 +248,7 @@ proc = DataProcessor()
 port.useCallback(proc)
 port.open(default_port_in)
 yarp.Network.connect('/py/datagen:o', default_port_in)
-threshold = 0.25
+threshold = options.threshold
 #%%
 """
 def foo():
@@ -280,6 +290,11 @@ while True:
     #print inputs
     bch_scores = model(inputs)
     prob = F.softmax(bch_scores)
+    bottle_BCH_prob = p_BCH_prob.prepare()
+    bottle_BCH_prob.clear()
+    bottle_BCH_prob.addDouble(prob.data[0,0])
+    p_BCH_prob.writeStrict()
+    
     if (prob.data[0,0] > threshold):
         predict_BCH = 1
     else:
@@ -300,6 +315,9 @@ port.close()
 port.interrupt()
 p_BCH.close()
 p_BCH.interrupt()
+
+p_BCH_prob.close()
+p_BCH_prob.interrupt()
 #%%
 """
 i = 0;
